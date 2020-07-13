@@ -302,7 +302,6 @@ abstract class AbstractResourceBuilder implements ResourceBuilderInterface, Link
      * @param ResourceObject $response
      * @param array $data
      * @param int $loadRelationshipsLevel
-     * @throws DbRecordNotFoundException
      * @throws Exception
      */
     private function buildRelationships(ResourceObject $response, array $data, int $loadRelationshipsLevel=0): void
@@ -313,60 +312,64 @@ abstract class AbstractResourceBuilder implements ResourceBuilderInterface, Link
             /** @var JsonDataMapper $mapper */
             $mapper = $this->mapper;
 
-            if ($relationship->getReadFunction() !== null) {
-                if (($values = $relationship->getReadValues()) === null){
-                    $values = [$data[$relationship->getAttribute()->getDatabaseFieldRelationship()]];
-                }
-                $relation->resourceLinkage->resources = $mapper->generateResourceObjectsByFunction(
-                    $relationship->getResourceBuilderName(),
-                    null,
-                    $relationship->getReadFunction(),
-                    $values,
-                    $loadRelationshipsLevel-1
-                );
+            try {
+                if ($relationship->getReadFunction() !== null) {
+                    if (($values = $relationship->getReadValues()) === null){
+                        $values = [$data[$relationship->getAttribute()->getDatabaseFieldRelationship()]];
+                    }
 
-                if ($relationship->getAttribute()->getDatabaseFieldRelationship() !== $relationship->getAttribute()->getDatabaseFieldName()){
-                    $data[$relationship->getAttribute()->getDatabaseFieldName()] = $relation->resourceLinkage->resources[0]->id ?? null;
-                }
-            } else {
-                switch ($relationship->getType()) {
-                    case RelationshipTypeInterface::RELATIONSHIP_ONE_TO_ONE:
-                        if ($data[$relationship->getAttribute()->getDatabaseFieldRelationship()] === null) {
-                            continue 2;
-                        }
-                        $relation->resourceLinkage->resources = $mapper->generateResourceObjectByFieldValue(
-                            $relationship->getResourceBuilderName(),
-                            null,
-                            $relationship->getAttribute(),
-                            $data[$relationship->getAttribute()->getDatabaseFieldRelationship()],
-                            $loadRelationshipsLevel-1
-                        );
-                        break;
-                    case RelationshipTypeInterface::RELATIONSHIP_ONE_TO_MANY:
-                        $relation->resourceLinkage->resources = $mapper->generateResourceObjectByFieldValue(
-                            $relationship->getResourceBuilderName(),
-                            null,
-                            $relationship->getAttribute(),
-                            $data[$relationship->getAttribute()->getDatabaseFieldRelationship()],
-                            $loadRelationshipsLevel-1
-                        );
-                        break;
-                    case RelationshipTypeInterface::RELATIONSHIP_MANY_TO_MANY:
                         $relation->resourceLinkage->resources = $mapper->generateResourceObjectsByFunction(
                             $relationship->getResourceBuilderName(),
                             null,
-                            'getFirstLevelJoin',
-                            [
-                                $relationship->getManyToManyRelationshipTableName(),
-                                $relationship->getAttribute()->getDatabaseFieldRelationship(),
-                                $relationship->getManyToManyRelationshipField(),
-                                $data[$relationship->getAttribute()->getDatabaseFieldRelationship()]
-                            ],
+                            $relationship->getReadFunction(),
+                            $values,
                             $loadRelationshipsLevel-1
                         );
+                    if ($relationship->getAttribute()->getDatabaseFieldRelationship() !== $relationship->getAttribute()->getDatabaseFieldName()){
+                        $data[$relationship->getAttribute()->getDatabaseFieldName()] = $relation->resourceLinkage->resources[0]->id ?? null;
+                    }
+                } else {
+                    switch ($relationship->getType()) {
+                        case RelationshipTypeInterface::RELATIONSHIP_ONE_TO_ONE:
+                            if ($data[$relationship->getAttribute()->getDatabaseFieldRelationship()] === null) {
+                                continue 2;
+                            }
+                            $relation->resourceLinkage->resources = $mapper->generateResourceObjectByFieldValue(
+                                $relationship->getResourceBuilderName(),
+                                null,
+                                $relationship->getAttribute(),
+                                $data[$relationship->getAttribute()->getDatabaseFieldRelationship()],
+                                $loadRelationshipsLevel-1
+                            );
+                            break;
+                        case RelationshipTypeInterface::RELATIONSHIP_ONE_TO_MANY:
+                            $relation->resourceLinkage->resources = $mapper->generateResourceObjectByFieldValue(
+                                $relationship->getResourceBuilderName(),
+                                null,
+                                $relationship->getAttribute(),
+                                $data[$relationship->getAttribute()->getDatabaseFieldRelationship()],
+                                $loadRelationshipsLevel-1
+                            );
+                            break;
+                        case RelationshipTypeInterface::RELATIONSHIP_MANY_TO_MANY:
+                            $relation->resourceLinkage->resources = $mapper->generateResourceObjectsByFunction(
+                                $relationship->getResourceBuilderName(),
+                                null,
+                                'getFirstLevelJoin',
+                                [
+                                    $relationship->getManyToManyRelationshipTableName(),
+                                    $relationship->getAttribute()->getDatabaseFieldRelationship(),
+                                    $relationship->getManyToManyRelationshipField(),
+                                    $data[$relationship->getAttribute()->getDatabaseFieldRelationship()]
+                                ],
+                                $loadRelationshipsLevel-1
+                            );
 
-                        break;
+                            break;
+                    }
                 }
+            } catch (DbRecordNotFoundException $exception) {
+                // No relationship record - no problem
             }
 
             $this->buildLinks($relationship, $this, $relation->links, $data);
