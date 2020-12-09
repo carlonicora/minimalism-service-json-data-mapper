@@ -51,6 +51,17 @@ trait LinkCreatorTrait
                 }
 
                 $linkElements[$linkElementsCounter] = $value;
+            } elseif (array_key_exists($linkElements[$linkElementsCounter], $data)){
+                try {
+                    if (($encrypter = $this->mapper->getDefaultEncrypter()) !== null) {
+                        $linkElements[$linkElementsCounter] = $encrypter->encryptId($data[$linkElements[$linkElementsCounter]]);
+                    }
+                } catch (Exception $e) {
+                    $linkElements[$linkElementsCounter] = $data[$linkElements[$linkElementsCounter]];
+                }
+                if ([$linkElementsCounter] === '') {
+                    $linkElements[$linkElementsCounter] = $data[$linkElements[$linkElementsCounter]];
+                }
             } else {
                 $linkElements[$linkElementsCounter] = '%'.$linkElements[$linkElementsCounter].'%';
             }
